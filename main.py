@@ -40,7 +40,6 @@ class TextFileDatabase:
                                 item['price'] = float(item['price'])
                             except ValueError:
                                 item['price'] = 0
-                        # Handle dishes data conversion from string to list
                         if 'dishes' in item and isinstance(item['dishes'], str):
                             try:
                                 item['dishes'] = ast.literal_eval(item['dishes'])
@@ -60,7 +59,6 @@ class TextFileDatabase:
                 for header in headers:
                     value = item.get(header, '')
                     if isinstance(value, list):
-                        # Serialize list as a string representation
                         value = str(value)
                     else:
                         value = str(value)
@@ -380,24 +378,29 @@ class MainWindow(QMainWindow):
         
         self.tables_tab = TablesTab(is_admin=user.get("isAdmin", False))
         self.reservations_tab = ReservationsTab()
-        self.orders_tab = OrdersTab(user)
-        self.receipts_tab = ReceiptsTab(user)
         self.menu_tab = MenuTab(is_admin=user.get("isAdmin", False))
-        self.stats_tab = StatsTab()
         
         self.stack.addWidget(self.tables_tab)
         self.stack.addWidget(self.reservations_tab)
-        self.stack.addWidget(self.orders_tab)
-        self.stack.addWidget(self.receipts_tab)
         self.stack.addWidget(self.menu_tab)
-        self.stack.addWidget(self.stats_tab)
+        
+        # Добавляем дополнительные вкладки только для админа
+        if user.get("isAdmin", False):
+            self.orders_tab = OrdersTab(user)
+            self.receipts_tab = ReceiptsTab(user)
+            self.stats_tab = StatsTab()
+            
+            self.stack.addWidget(self.orders_tab)
+            self.stack.addWidget(self.receipts_tab)
+            self.stack.addWidget(self.stats_tab)
+            
+            self.orders_tab.order_updated.connect(self.reservations_tab.load_reservations)
+            self.orders_tab.receipt_created.connect(self.receipts_tab.load_receipts)
+            self.receipts_tab.receipt_paid.connect(self.orders_tab.load_orders)
         
         self.stack.setCurrentWidget(self.tables_tab)
         
         self.reservations_tab.reservation_created.connect(self.tables_tab.load_tables)
-        self.orders_tab.order_updated.connect(self.reservations_tab.load_reservations)
-        self.orders_tab.receipt_created.connect(self.receipts_tab.load_receipts)
-        self.receipts_tab.receipt_paid.connect(self.orders_tab.load_orders)
         
         btn_logout = QPushButton("Выйти из аккаунта")
         btn_logout.setStyleSheet("""
@@ -461,12 +464,22 @@ class MainWindow(QMainWindow):
         
         self.btn_tables.setChecked(True)
         
+        # Показываем все кнопки для админа, скрываем некоторые для обычного пользователя
         nav_layout.addWidget(self.btn_tables)
         nav_layout.addWidget(self.btn_reservations)
-        nav_layout.addWidget(self.btn_orders)
-        nav_layout.addWidget(self.btn_receipts)
-        nav_layout.addWidget(self.btn_menu)
-        nav_layout.addWidget(self.btn_stats)
+        
+        if self.user.get("isAdmin", False):
+            nav_layout.addWidget(self.btn_orders)
+            nav_layout.addWidget(self.btn_receipts)
+            nav_layout.addWidget(self.btn_menu)
+            nav_layout.addWidget(self.btn_stats)
+        else:
+            # Для обычного пользователя показываем только меню
+            nav_layout.addWidget(self.btn_menu)
+            # Скрываем кнопки, которые не должны быть видны
+            self.btn_orders.hide()
+            self.btn_receipts.hide()
+            self.btn_stats.hide()
         
         self.btn_tables.clicked.connect(lambda: self.show_section(self.tables_tab))
         self.btn_reservations.clicked.connect(lambda: self.show_section(self.reservations_tab))
